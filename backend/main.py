@@ -166,7 +166,7 @@ if _cors_origins_env:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
-    allow_origin_regex=r"https://.*\.run\.app",  # Allow all Cloud Run origins
+    allow_origin_regex=r"https://.*\.(run\.app|vercel\.app)",  # Allow Cloud Run and Vercel origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -205,6 +205,15 @@ class UserIdMiddleware(BaseHTTPMiddleware):
             user_ctx.reset(token)
 
 app.add_middleware(UserIdMiddleware)
+
+@app.get("/")
+async def root():
+    return {
+        "message": "Digital Asset Protection API is running.",
+        "version": "4.0.0",
+        "docs_url": "/docs"
+    }
+
 
 
 @app.get("/health")
