@@ -1,0 +1,62 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: dap_postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: digital_asset_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d digital_asset_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dap_backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      # `./backend/.env` provides DATABASE_URL, GCS_BUCKET_NAME and other vars.
+      CORS_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000"
+      # If you want the container to use a mounted service account file for GCS,
+      # mount it below and this env will point to the in-container path.
+      GOOGLE_APPLICATION_CREDENTIALS: /app/gcs-key.json
+    volumes:
+      - ./backend:/app
+      - backend_data:/app/data
+      # To enable GCS auth, place your service account JSON at project root
+      # as `gcs-service-account.json` and uncomment the following mount:
+      - ./gcs-service-account.json:/app/gcs-key.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    container_name: dap_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      - backend
+
+volumes:
+  backend_data:
+  postgres_data:
