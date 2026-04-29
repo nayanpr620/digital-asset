@@ -36,7 +36,6 @@ def search_youtube(query: str, max_results: int = 5) -> List[Dict]:
         type="video",
         maxResults=max_results,
         order="relevance",
-        videoDuration="short",
     )
     response = request.execute()
 

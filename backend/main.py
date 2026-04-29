@@ -123,9 +123,10 @@ def _scheduler_loop():
         try:
             due = get_due_schedules()
             for s in due:
-                logger.info(f"Scheduled scan for asset {s['asset_id']}")
-                scan_id = create_scan(s["asset_id"], scan_type="scheduled")
-                _run_scan(s["asset_id"], scan_id)
+                uid = s.get("user_id")
+                logger.info(f"Scheduled scan for asset {s['asset_id']} (user={uid})")
+                scan_id = create_scan(s["asset_id"], scan_type="scheduled", user_id=uid)
+                _run_scan(s["asset_id"], scan_id, uid=uid)
                 update_schedule_run(s["id"], s["interval_hours"])
         except Exception as e:
             logger.error(f"Scheduler error: {e}")
@@ -440,7 +441,7 @@ def _run_scan(asset_id: str, scan_id: str, uid: str = None):
         update_scan(scan_id, search_queries=queries)
 
         broadcast_sync({"type":"scan_progress","scan_id":scan_id,"stage":"youtube_search","message":f"Searching YouTube with {len(queries)} queries..."}, user_id=uid)
-        try: yt_results = search_multiple_queries(queries, max_per_query=3)
+        try: yt_results = search_multiple_queries(queries, max_per_query=5)
         except Exception as e: logger.error(f"YouTube search failed: {e}"); yt_results = []
         update_scan(scan_id, youtube_searched=len(yt_results))
 
