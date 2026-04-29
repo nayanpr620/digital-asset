@@ -129,9 +129,9 @@ def download_video(youtube_id: str, output_dir: str) -> Optional[str]:
                 if "ev_poll_posix" not in line and "fork parent" not in line
             )
             if stderr_clean.strip():
-                logger.error(f"yt-dlp failed for {youtube_id}: {stderr_clean[:200]}")
+                logger.error(f"🚨 YOUTUBE DOWNLOAD ERROR for {youtube_id}: {stderr_clean[:500]}")
             else:
-                logger.warning(f"yt-dlp returned non-zero for {youtube_id} but no actionable error")
+                logger.warning(f"⚠️ yt-dlp returned non-zero for {youtube_id} but no actionable error")
             
     except subprocess.TimeoutExpired:
         logger.error(f"Download timed out for {youtube_id}")

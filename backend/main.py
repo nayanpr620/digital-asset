@@ -151,7 +151,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Digital Asset Protection Platform",
-    version="4.0.3",
+    version="4.0.4",
     lifespan=lifespan,
 )
 
@@ -211,7 +211,7 @@ app.add_middleware(UserIdMiddleware)
 async def root():
     return {
         "message": "Digital Asset Protection API is running.",
-        "version": "4.0.0",
+        "version": app.version,
         "docs_url": "/docs"
     }
 
