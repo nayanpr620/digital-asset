@@ -1,17 +1,17 @@
 # Data
-data/
+backend/data/*
+!backend/data/cookies.txt
+backend/data/downloads/
+backend/data/uploads/
+backend/data/frames/
+backend/data/audio/
+backend/data/results/
 *.wav
 *.mp4
 *.avi
 *.mkv
 *.png
 *.jpg
-backend/data/
-backend/data/**
-backend/data/downloads/
-backend/data/uploads/
-backend/data/frames/
-backend/data/audio/
 
 # Python
 __pycache__/
