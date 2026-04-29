@@ -151,7 +151,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Digital Asset Protection Platform",
-    version="4.0.2",
+    version="4.0.3",
     lifespan=lifespan,
 )
 
