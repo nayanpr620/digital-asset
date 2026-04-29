@@ -124,7 +124,6 @@ def download_video(youtube_id: str, output_dir: str) -> Optional[str]:
                 return path
 
         if r.returncode != 0:
-            # Filter out grpc noise from error message
             stderr_clean = "\n".join(
                 line for line in r.stderr.splitlines()
                 if "ev_poll_posix" not in line and "fork parent" not in line
@@ -133,20 +132,6 @@ def download_video(youtube_id: str, output_dir: str) -> Optional[str]:
                 logger.error(f"yt-dlp failed for {youtube_id}: {stderr_clean[:200]}")
             else:
                 logger.warning(f"yt-dlp returned non-zero for {youtube_id} but no actionable error")
-        
-        # MOCK FOR TESTING: Bypass YouTube 403 blocks by copying any available video as a fake download
-        # This allows the matching engine to proceed even if YouTube is blocking us temporarily.
-        import glob, shutil
-        # Check uploads, frames, and /tmp for any .mp4 to use as a fallback
-        search_dirs = [os.path.join(DATA_DIR, "uploads"), "/tmp", output_dir]
-        for d in search_dirs:
-            if not os.path.exists(d): continue
-            uploads = glob.glob(os.path.join(d, "*.mp4"))
-            if uploads:
-                logger.info(f"YouTube block detected. Using available asset {os.path.basename(uploads[0])} as fallback sample.")
-                fake_path = os.path.join(output_dir, f"{youtube_id}.mp4")
-                shutil.copy(uploads[0], fake_path)
-                return fake_path
             
     except subprocess.TimeoutExpired:
         logger.error(f"Download timed out for {youtube_id}")
