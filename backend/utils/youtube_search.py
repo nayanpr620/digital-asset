@@ -87,25 +87,20 @@ def download_video(youtube_id: str, output_dir: str) -> Optional[str]:
     os.makedirs(output_dir, exist_ok=True)
     out_template = os.path.join(output_dir, f"{youtube_id}.%(ext)s")
 
-    # Browser-like headers to reduce 403 Forbidden blocks
+    # Bypass YouTube's PO Token blocking by using the Android client
+    # The Android client does not require cookies or PO tokens for non-age-restricted videos.
+    # Passing cookies forces yt-dlp to use the web client, which triggers a 403 Forbidden without a PO Token.
     cmd = [
         "yt-dlp",
-        "--format", "worst[ext=mp4]/worst",
         "--output", out_template,
         "--no-playlist",
         "--socket-timeout", "60",
         "--retries", "5",
-        "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "--add-header", "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-        "--add-header", "Accept-Language: en-US,en;q=0.9",
+        "--extractor-args", "youtube:player_client=android",
         "--quiet",
         "--no-warnings"
     ]
     
-    cookies_file = os.path.join(DATA_DIR, "cookies.txt")
-    if os.path.exists(cookies_file):
-        cmd.extend(["--cookies", cookies_file])
-        
     cmd.append(f"https://www.youtube.com/watch?v={youtube_id}")
 
     # Isolate yt-dlp from grpc fork pollution (FD warnings in stderr)
