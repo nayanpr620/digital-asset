@@ -30,10 +30,11 @@ def _clean_json(text):
     return text.strip()
 
 
-def generate_search_queries(video_title: str, filename: str = "") -> List[str]:
+def generate_search_queries(video_title: str, filename: str = "", frame_paths: List[str] = None) -> List[str]:
     """Generate 5 optimized YouTube search queries to find pirated versions."""
     try:
         model = _get_model()
+        
         prompt = f"""You are a sports video piracy detection system. Given a sports video title and filename,
 generate exactly 5 YouTube search queries that would help find unauthorized re-uploads,
 highlights, or copies of this content on YouTube.
@@ -45,8 +46,54 @@ Video title: {video_title}
 Filename: {filename}
 
 Return ONLY a JSON array of 5 search query strings. No explanation. No markdown."""
+        
+        contents = [prompt]
+        
+        if frame_paths and len(frame_paths) > 0:
+            import PIL.Image
+            from utils.storage import USE_GCS, download_from_gcs
+            import tempfile
+            
+            prompt = f"""You are a sports video piracy detection system. Given a sports video title, filename, AND frames from the video,
+generate exactly 5 YouTube search queries that would help find unauthorized re-uploads,
+highlights, or copies of this content on YouTube.
+Analyze the images carefully to identify the sport, the teams playing, any players visible, and the context.
+If the video title or filename is generic (e.g. 'WhatsApp Video...'), rely primarily on the visual content of the frames to determine what the video is about and generate relevant search queries based on the visual context.
 
-        response = model.generate_content(prompt)
+Video title: {video_title}
+Filename: {filename}
+
+Return ONLY a JSON array of 5 search query strings. No explanation. No markdown."""
+            contents = [prompt]
+            
+            temp_files = []
+            for fp in frame_paths[:3]: # Take up to 3 frames
+                try:
+                    local_fp = fp
+                    # If it's a GCS path and not a local path, download it temporarily
+                    if not os.path.exists(local_fp) and USE_GCS and local_fp.startswith("assets/"):
+                        temp_fd, temp_path = tempfile.mkstemp(suffix=".png")
+                        os.close(temp_fd)
+                        if download_from_gcs(local_fp, temp_path):
+                            local_fp = temp_path
+                            temp_files.append(temp_path)
+                    
+                    if os.path.exists(local_fp):
+                        img = PIL.Image.open(local_fp)
+                        contents.append(img)
+                except Exception as e:
+                    logger.warning(f"Could not load frame {fp} for Gemini vision: {e}")
+
+        response = model.generate_content(contents)
+        
+        # Cleanup temporary downloaded frames
+        for temp_file in temp_files if 'temp_files' in locals() else []:
+            try:
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+            except Exception:
+                pass
+
         queries = json.loads(_clean_json(response.text))
         if isinstance(queries, list) and len(queries) > 0:
             logger.info(f"Gemini generated {len(queries)} search queries")

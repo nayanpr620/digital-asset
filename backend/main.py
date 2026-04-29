@@ -432,7 +432,7 @@ def _run_scan(asset_id: str, scan_id: str, uid: str = None):
         source_fp = {"frame_hashes": asset["frame_hashes"], "audio_fingerprint": asset["audio_fingerprint"]}
 
         broadcast_sync({"type":"scan_progress","scan_id":scan_id,"stage":"gemini_queries","message":"Generating search queries..."}, user_id=uid)
-        try: queries = generate_search_queries(asset["title"], asset.get("filename",""))
+        try: queries = generate_search_queries(asset["title"], asset.get("filename",""), asset.get("frame_paths", []))
         except Exception as e:
             logger.warning(f"Gemini queries failed: {e}")
             clean = asset["title"].replace("_"," ")
