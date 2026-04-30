@@ -83,57 +83,39 @@ def search_multiple_queries(queries: List[str], max_per_query: int = 3) -> List[
 
 
 def download_video(youtube_id: str, output_dir: str) -> Optional[str]:
-    """Download YouTube video via yt-dlp. Returns path or None."""
+    """Download YouTube video via pytubefix to bypass Datacenter IP and PO token blocks. Returns path or None."""
     os.makedirs(output_dir, exist_ok=True)
-    out_template = os.path.join(output_dir, f"{youtube_id}.%(ext)s")
-
-    # Bypass YouTube's PO Token blocking by using the Android client
-    # The Android client does not require cookies or PO tokens for non-age-restricted videos.
-    # Passing cookies forces yt-dlp to use the web client, which triggers a 403 Forbidden without a PO Token.
-    cmd = [
-        "yt-dlp",
-        "--output", out_template,
-        "--no-playlist",
-        "--socket-timeout", "60",
-        "--retries", "5",
-        "--extractor-args", "youtube:player_client=android",
-        "--quiet",
-        "--no-warnings"
-    ]
     
-    cmd.append(f"https://www.youtube.com/watch?v={youtube_id}")
-
-    # Isolate yt-dlp from grpc fork pollution (FD warnings in stderr)
-    clean_env = os.environ.copy()
-    clean_env["GRPC_POLL_STRATEGY"] = "poll"
-    clean_env.pop("GRPC_ENABLE_FORK_SUPPORT", None)
-
+    # We use pytubefix because yt-dlp gets blocked by PO Token or "Bot Check" on GCP IPs.
+    # pytubefix with ANDROID_VR client bypasses this organically.
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=180, env=clean_env)
-
-        # Always check for output files — grpc warnings can cause non-zero exit
-        for f in os.listdir(output_dir):
-            if f.startswith(youtube_id) and not f.endswith(".part"):
-                path = os.path.join(output_dir, f)
-                logger.info(f"Downloaded: {path}")
-                return path
-
-        if r.returncode != 0:
-            stderr_clean = "\n".join(
-                line for line in r.stderr.splitlines()
-                if "ev_poll_posix" not in line and "fork parent" not in line
-            )
-            if stderr_clean.strip():
-                logger.error(f"🚨 YOUTUBE DOWNLOAD ERROR for {youtube_id}: {stderr_clean[:500]}")
-            else:
-                logger.warning(f"⚠️ yt-dlp returned non-zero for {youtube_id} but no actionable error")
+        from pytubefix import YouTube
+        
+        url = f"https://www.youtube.com/watch?v={youtube_id}"
+        # Using WEB client automatically generates PO Tokens using nodejs-wheel-binaries
+        # This completely bypasses Datacenter IP bot detection and 403 Forbidden errors.
+        yt = YouTube(url, client='WEB')
+        
+        # Get the lowest resolution progressive stream to save bandwidth
+        stream = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').first()
+        
+        if not stream:
+            logger.warning(f"No valid mp4 stream found for {youtube_id}")
+            return None
             
-    except subprocess.TimeoutExpired:
-        logger.error(f"Download timed out for {youtube_id}")
+        # Download to output_dir
+        logger.info(f"Downloading stream for {youtube_id}...")
+        downloaded_file = stream.download(output_path=output_dir, filename=f"{youtube_id}.mp4")
+        
+        if os.path.exists(downloaded_file):
+            logger.info(f"Successfully downloaded {youtube_id} to {downloaded_file}")
+            return downloaded_file
+            
+        return None
+        
     except Exception as e:
-        logger.error(f"Download error: {e}")
-
-    return None
+        logger.error(f"🚨 YOUTUBE DOWNLOAD ERROR for {youtube_id}: {e}")
+        return None
 
 
 def sample_youtube_video(video_info: dict) -> dict:
