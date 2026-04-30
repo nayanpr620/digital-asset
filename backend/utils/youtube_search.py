@@ -27,37 +27,54 @@ def search_youtube(query: str, max_results: int = 5) -> List[Dict]:
     Search YouTube for videos matching query.
     Returns list of dicts with video info.
     """
-    youtube = get_youtube_service()
     logger.info(f"YouTube search: '{query}' (max {max_results})")
-
-    request = youtube.search().list(
-        q=query,
-        part="snippet",
-        type="video",
-        maxResults=max_results,
-        order="relevance",
-    )
-    response = request.execute()
-
     results = []
-    for item in response.get("items", []):
-        vid_id = item["id"]["videoId"]
-        snippet = item["snippet"]
-        thumbs = snippet.get("thumbnails", {})
-        thumb_url = (
-            thumbs.get("high", {}).get("url")
-            or thumbs.get("medium", {}).get("url")
-            or thumbs.get("default", {}).get("url", "")
-        )
-        results.append({
-            "youtube_id": vid_id,
-            "title": snippet.get("title", ""),
-            "channel": snippet.get("channelTitle", ""),
-            "thumbnail": thumb_url,
-            "published_at": snippet.get("publishedAt", ""),
-            "url": f"https://www.youtube.com/watch?v={vid_id}",
-        })
 
+    try:
+        youtube = get_youtube_service()
+        request = youtube.search().list(
+            q=query,
+            part="snippet",
+            type="video",
+            maxResults=max_results,
+            order="relevance",
+        )
+        response = request.execute()
+
+        for item in response.get("items", []):
+            vid_id = item["id"]["videoId"]
+            snippet = item["snippet"]
+            thumbs = snippet.get("thumbnails", {})
+            thumb_url = (
+                thumbs.get("high", {}).get("url")
+                or thumbs.get("medium", {}).get("url")
+                or thumbs.get("default", {}).get("url", "")
+            )
+            results.append({
+                "youtube_id": vid_id,
+                "title": snippet.get("title", ""),
+                "channel": snippet.get("channelTitle", ""),
+                "thumbnail": thumb_url,
+                "published_at": snippet.get("publishedAt", ""),
+                "url": f"https://www.youtube.com/watch?v={vid_id}",
+            })
+    except Exception as e:
+        logger.warning(f"YouTube Data API failed (likely quota exceeded): {e}. Falling back to pytubefix scraper.")
+        try:
+            from pytubefix import Search
+            s = Search(query)
+            for v in s.videos[:max_results]:
+                results.append({
+                    "youtube_id": v.video_id,
+                    "title": v.title,
+                    "channel": v.author,
+                    "thumbnail": f"https://img.youtube.com/vi/{v.video_id}/hqdefault.jpg",
+                    "published_at": "",
+                    "url": f"https://www.youtube.com/watch?v={v.video_id}",
+                })
+        except Exception as fallback_err:
+            logger.error(f"Fallback search also failed: {fallback_err}")
+            
     logger.info(f"Found {len(results)} videos for '{query}'")
     return results
 
@@ -121,25 +138,62 @@ def download_video(youtube_id: str, output_dir: str) -> Optional[str]:
 def sample_youtube_video(video_info: dict) -> dict:
     """
     Download a YouTube video and extract frames + audio for fingerprinting.
+    If the video download is blocked by YouTube's Datacenter IP BotGuard, 
+    it falls back to downloading the thumbnails for visual fingerprinting.
     Returns the video_info dict augmented with frame_hashes and audio_fingerprint.
     """
     from utils.video_processing import (
         extract_specific_frames, generate_frame_hashes,
         extract_audio, generate_audio_fingerprint
     )
+    import urllib.request
 
     yt_id = video_info["youtube_id"]
     dl_dir = os.path.join(DATA_DIR, "downloads", yt_id)
+    os.makedirs(dl_dir, exist_ok=True)
 
     video_path = download_video(yt_id, dl_dir)
+    
     if not video_path:
-        video_info["frame_hashes"] = []
-        video_info["audio_fingerprint"] = None
-        video_info["sampled"] = False
+        logger.warning(f"Video download blocked for {yt_id}. Falling back to Thumbnail Visual Fingerprinting.")
+        # Fallback: Download thumbnails directly (bypasses all bot protections)
+        frames_dir = os.path.join(dl_dir, "frames")
+        os.makedirs(frames_dir, exist_ok=True)
+        
+        fallback_hashes = []
+        try:
+            # Download maxresdefault and hqdefault to use as frames
+            for res in ["maxresdefault", "hqdefault", "mqdefault", "sddefault"]:
+                url = f"https://img.youtube.com/vi/{yt_id}/{res}.jpg"
+                out_path = os.path.join(frames_dir, f"{res}.jpg")
+                try:
+                    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                    with urllib.request.urlopen(req, timeout=5) as response, open(out_path, 'wb') as out_file:
+                        out_file.write(response.read())
+                    if os.path.exists(out_path):
+                        fallback_hashes.extend(generate_frame_hashes([out_path]))
+                except Exception:
+                    continue
+                    
+            video_info["frame_hashes"] = list(set(fallback_hashes)) # deduplicate
+            video_info["audio_fingerprint"] = None
+            video_info["sampled"] = len(video_info["frame_hashes"]) > 0
+            
+            if video_info["sampled"]:
+                logger.info(f"Fallback successful for {yt_id}: Generated {len(video_info['frame_hashes'])} visual hashes from thumbnails.")
+            else:
+                logger.error(f"Fallback failed for {yt_id}: Could not fetch any thumbnails.")
+                
+        except Exception as e:
+            logger.error(f"Error during thumbnail fallback for {yt_id}: {e}")
+            video_info["frame_hashes"] = []
+            video_info["audio_fingerprint"] = None
+            video_info["sampled"] = False
+            
         return video_info
 
     try:
-        # Extract frames
+        # Normal extraction for successful downloads
         frames_dir = os.path.join(dl_dir, "frames")
         frame_paths = extract_specific_frames(video_path, frames_dir, count=5)
         video_info["frame_hashes"] = generate_frame_hashes(frame_paths)
