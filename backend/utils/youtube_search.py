@@ -59,19 +59,25 @@ def search_youtube(query: str, max_results: int = 5) -> List[Dict]:
                 "url": f"https://www.youtube.com/watch?v={vid_id}",
             })
     except Exception as e:
-        logger.warning(f"YouTube Data API failed (likely quota exceeded): {e}. Falling back to pytubefix scraper.")
+        logger.warning(f"YouTube Data API failed (likely quota exceeded): {e}. Falling back to yt-dlp scraper.")
         try:
-            from pytubefix import Search
-            s = Search(query)
-            for v in s.videos[:max_results]:
-                results.append({
-                    "youtube_id": v.video_id,
-                    "title": v.title,
-                    "channel": v.author,
-                    "thumbnail": f"https://img.youtube.com/vi/{v.video_id}/hqdefault.jpg",
-                    "published_at": "",
-                    "url": f"https://www.youtube.com/watch?v={v.video_id}",
-                })
+            import subprocess, json
+            cmd = ["yt-dlp", f"ytsearch{max_results}:{query}", "--dump-json", "--no-warnings", "--ignore-errors"]
+            out = subprocess.check_output(cmd, timeout=45).decode('utf-8')
+            for line in out.strip().split('\n'):
+                if not line.strip(): continue
+                try:
+                    v = json.loads(line)
+                    results.append({
+                        "youtube_id": v.get("id"),
+                        "title": v.get("title", ""),
+                        "channel": v.get("uploader", ""),
+                        "thumbnail": f"https://img.youtube.com/vi/{v.get('id')}/hqdefault.jpg",
+                        "published_at": "",
+                        "url": f"https://www.youtube.com/watch?v={v.get('id')}",
+                    })
+                except json.JSONDecodeError:
+                    pass
         except Exception as fallback_err:
             logger.error(f"Fallback search also failed: {fallback_err}")
             
