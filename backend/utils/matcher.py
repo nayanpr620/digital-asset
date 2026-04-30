@@ -88,22 +88,27 @@ def audio_similarity(fp1: str, fp2: str) -> float:
 
 
 def compute_confidence(v_sim: float, a_sim: float) -> float:
-    """confidence = 0.6 * visual + 0.4 * audio"""
-    return round(PHASH_WEIGHT * v_sim + AUDIO_WEIGHT * a_sim, 4)
+    """confidence = 0.5 * visual + 0.5 * audio"""
+    return round(0.5 * v_sim + 0.5 * a_sim, 4)
 
 
 def determine_match_type(v_sim: float, a_sim: float) -> str:
     """Determine what kind of match this is based on individual similarities."""
-    v_strong = v_sim >= 0.6
-    a_strong = a_sim >= 0.6
+    v_strong = v_sim >= 0.55
+    a_strong = a_sim >= 0.55
+    
     if v_strong and a_strong:
-        return "Audio + Visual"
+        return "Full Rip (A+V)"
+    elif v_strong and a_sim < 0.2:
+        return "Meme / Edit"
     elif v_strong:
-        return "Visual Only"
+        return "Visual Match"
+    elif a_strong and v_sim < 0.2:
+        return "Background Audio"
     elif a_strong:
-        return "Audio Only"
+        return "Audio Match"
     else:
-        return "Partial"
+        return "Partial Match"
 
 
 def confidence_label(score: float) -> str:

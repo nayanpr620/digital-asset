@@ -151,9 +151,9 @@ def analyze_anomalies(propagation_data: dict) -> dict:
 and identify anomalies, suspicious patterns, and risks.
 
 Data:
-- Timeline (daily detection events): {json.dumps(propagation_data.get('timeline', []))}
-- Top channels involved: {json.dumps(propagation_data.get('channels', []))}
-- Channel risk scores: {json.dumps(propagation_data.get('channel_risks', []))}
+- Timeline (daily detection events): {json.dumps(propagation_data.get('timeline', []), default=str)}
+- Top channels involved: {json.dumps(propagation_data.get('channels', []), default=str)}
+- Channel risk scores: {json.dumps(propagation_data.get('channel_risks', []), default=str)}
 - Total violations: {propagation_data.get('total_violations', 0)}
 - High risk violations: {propagation_data.get('high_risk', 0)}
 
