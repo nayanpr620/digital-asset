@@ -376,8 +376,10 @@ def delete_asset(asset_id, user_id=None):
         asset = _fetchone(c, f"SELECT id FROM assets WHERE id={P} AND user_id={P}", (asset_id, uid))
         if not asset:
             raise ValueError("Asset not found or access denied")
-        for tbl in ("scheduled_monitors", "propagation_events", "violations", "scans"):
+        for tbl in ("propagation_events", "violations", "scans"):
             _execute(c, f"DELETE FROM {tbl} WHERE asset_id={P} AND user_id={P}", (asset_id, uid))
+        # scheduled_monitors does not have a user_id column in the current schema
+        _execute(c, f"DELETE FROM scheduled_monitors WHERE asset_id={P}", (asset_id,))
         _execute(c, f"DELETE FROM assets WHERE id={P} AND user_id={P}", (asset_id, uid))
 
 def update_asset_threshold(asset_id, threshold):
