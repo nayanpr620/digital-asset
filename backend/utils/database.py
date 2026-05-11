@@ -667,9 +667,20 @@ def get_schedules(user_id=None):
 def get_due_schedules():
     now_fn = _now_sql()
     next_run_col = _datetime_cast("next_run")
+    claimed = []
     with get_conn() as c:
-        return [_parse_json_fields(r) for r in _fetchall(c,
-            f"SELECT * FROM scheduled_monitors WHERE is_active=1 AND (next_run IS NULL OR {next_run_col} <= {now_fn})")]
+        due = _fetchall(c, f"SELECT * FROM scheduled_monitors WHERE is_active=1 AND (next_run IS NULL OR {next_run_col} <= {now_fn})")
+        for r in due:
+            sid = r["id"]
+            interval = r.get("interval_hours", 24)
+            if interval <= 0:
+                interval = 24
+            next_fn = _date_add_hours(interval)
+            
+            cur = _execute(c, f"UPDATE scheduled_monitors SET next_run={next_fn} WHERE id={P} AND (next_run IS NULL OR {next_run_col} <= {now_fn})", (sid,))
+            if cur.rowcount > 0:
+                claimed.append(_parse_json_fields(r))
+    return claimed
 
 def update_schedule_run(sid, interval_hours):
     now_fn = _now_sql()

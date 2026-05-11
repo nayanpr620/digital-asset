@@ -84,7 +84,8 @@ The project is fully configured for deployment on Google Cloud Run with a persis
      --source . \
      --region us-central1 \
      --allow-unauthenticated \
-     --memory 1Gi \
+     --memory 2Gi \
+     --max-instances 2 \
      --timeout 300 \
      --add-cloudsql-instances YOUR_PROJECT_ID:us-central1:dap-db-instance \
      --set-env-vars="YOUTUBE_API_KEY=your_youtube_key,GEMINI_API_KEY=your_gemini_key,DATABASE_URL=postgresql://dap_user:YOUR_SECURE_PASSWORD@/digital_asset_db?host=/cloudsql/YOUR_PROJECT_ID:us-central1:dap-db-instance,GCS_BUCKET_NAME=YOUR_PROJECT_ID-dap-assets,CORS_ORIGINS=https://dap-frontend-xxxxx-uc.a.run.app"

@@ -15,7 +15,6 @@ export default function MonitorPage() {
 
   useEffect(() => {
     load();
-    const interval = setInterval(load, 4000);
 
     let isActive = true;
     let ws: WebSocket | null = null;
@@ -43,7 +42,6 @@ export default function MonitorPage() {
 
     return () => {
       isActive = false;
-      clearInterval(interval);
       if (reconnectTimer) clearTimeout(reconnectTimer);
       ws?.close();
     };

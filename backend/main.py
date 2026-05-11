@@ -498,6 +498,11 @@ async def scan_asset(asset_id: str, background_tasks: BackgroundTasks):
 
 
 # ═══ BATCH SCAN ALL ASSETS ═══════════════════════════════════════
+def _run_batch_scan(assets, uid):
+    for asset in assets:
+        scan_id = create_scan(asset["id"], scan_type="batch", user_id=uid)
+        _run_scan(asset["id"], scan_id, uid)
+
 @app.post("/assets/scan-all")
 async def scan_all_assets(background_tasks: BackgroundTasks):
     """Batch scan all registered assets. Returns list of scan IDs."""
@@ -508,13 +513,8 @@ async def scan_all_assets(background_tasks: BackgroundTasks):
     if not assets:
         raise HTTPException(404, "No assets registered")
 
-    scan_ids = []
-    for asset in assets:
-        scan_id = create_scan(asset["id"], scan_type="batch", user_id=uid)
-        background_tasks.add_task(_run_scan, asset["id"], scan_id, uid)
-        scan_ids.append({"asset_id": asset["id"], "asset_title": asset["title"], "scan_id": scan_id})
-
-    return {"status": "scanning", "total": len(scan_ids), "scans": scan_ids}
+    background_tasks.add_task(_run_batch_scan, assets, uid)
+    return {"status": "scanning", "total": len(assets), "message": "Batch scan started sequentially to prevent OOM"}
 
 
 @app.get("/scans")
